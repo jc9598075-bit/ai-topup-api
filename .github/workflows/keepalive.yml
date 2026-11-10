@@ -1,0 +1,39 @@
+# Supabase 保活：免费项目闲置 1 周会暂停，每周 ping 一次防止暂停。
+# 只读，不写库、不改数据。curl 失败也不阻塞（fail-open，避免误报）。
+#
+# 注意：price_history 表开了 RLS 且目前没有任何策略，anon key 读到的可能
+# 是空数组 []——这没关系，本次请求本身就是一次对项目的数据库访问，起到
+# 保活作用。如果想让保活读到真实行，可以在 Supabase 里给 price_history
+# 加一条允许匿名 SELECT 的策略（可选，未做，不阻塞）。
+#
+# 需要的 GitHub Secrets（仓库 Settings → Secrets and variables → Actions）：
+#   SUPABASE_URL       Supabase 项目 URL，例如 https://xxx.supabase.co
+#   SUPABASE_ANON_KEY  Supabase 的 anon / publishable key（只读权限）
+# 密钥值绝不要写进这个文件。
+
+name: Supabase keepalive
+
+on:
+  schedule:
+    # 每周一 09:00 UTC 跑一次（北京时间 17:00）
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # 手动触发，方便测试
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 读 price_history 最新 1 条（只读保活）
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          # 失败也不阻塞：curl 失败时返回成功，避免一次网络抖动就报红。
+          curl -sS --max-time 30 \
+            "${SUPABASE_URL}/rest/v1/price_history?select=id,shop,product,price_cny,checked_at&order=checked_at.desc&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -o /tmp/keepalive.json -w "HTTP %{http_code}\n" || true
+          echo "保活请求已发出（返回内容见上，不论成功失败本步骤都通过）："
+          cat /tmp/keepalive.json 2>/dev/null || echo "(无返回内容)"
+          exit 0

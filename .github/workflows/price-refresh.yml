@@ -1,0 +1,51 @@
+# 定时抓价格流骨架：每 5 小时跑一次。
+# 目前只有步骤注释和占位，真实数据源还没接——不要在这里编造任何一家店
+# 的真实价格、不要写死任何店铺名和价格。接上真实数据源后，把下面 TODO
+# 处填上即可；在此之前这个工作流跑起来只会打印提示，不写任何数据。
+#
+# 需要的 GitHub Secrets（仓库 Settings → Secrets and variables → Actions）：
+#   WORKER_URL     部署后的 Worker 地址，例如 https://ai-topup-api.<子域>.workers.dev
+#   WRITE_SECRET  写接口的鉴权密钥，和 Worker 端 `wrangler secret put
+#                  WRITE_SECRET` 设置的是同一个值，两边名字相同、值也相同，
+#                  部署时别填岔了（见 worker/src/index.js 的 POST /api/prices 鉴权逻辑）。
+# 密钥值绝不要写进这个文件。
+
+name: Price refresh (every 5h)
+
+on:
+  schedule:
+    # 每 5 小时跑一次：00:00、05:00、10:00、15:00、20:00 UTC
+    - cron: '0 */5 * * *'
+  workflow_dispatch: # 手动触发，方便测试
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # TODO（第一步）：抓取各店价格，接真实数据源。
+      # 现在还是占位：不要编价格。等数据源确定后，在这里加抓取步骤，
+      # 把结果写成一个 JSON 数组（每项 { shop, product, price_cny }），
+      # 再往下走第二步写入。
+      - name: 抓取各店价格（待接真实数据源）
+        run: |
+          echo "TODO：接入真实数据源，抓取各店价格。"
+          echo "当前还是骨架：没有抓任何价格，也不写库。"
+          echo "接好后把结果写成 JSON 数组，每项 { shop, product, price_cny }。"
+
+      # TODO（第二步）：调 Worker 的 POST /api/prices 写入。
+      # 现在还是占位：下面是写好的 curl 模板，先注释掉，等第一步有了
+      # 真实数据再取消注释。不要用假数据调这个接口。
+      - name: 写入 Worker（占位，待第一步有真实数据后启用）
+        env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          WRITE_SECRET: ${{ secrets.WRITE_SECRET }}
+        run: |
+          echo "TODO：第一步产出真实价格数据后，在此逐条 POST 到 Worker。"
+          echo "Worker 地址来自 Secrets 的 WORKER_URL，鉴权头用 Secrets 的 WRITE_SECRET。"
+          # 启用后的写法（每条价格调一次，WRITE_SECRET 的值必须等于 Worker 的 WRITE_SECRET）：
+          # curl -sS -X POST "${WORKER_URL}/api/prices" \
+          #   -H "Content-Type: application/json" \
+          #   -H "Authorization: Bearer ${WRITE_SECRET}" \
+          #   -d '{"shop": "真实店名", "product": "Plus", "price_cny": 123.45}'
