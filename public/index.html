@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 代充价格查询</title>
+<style>
+  body { font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 22px; }
+  .card { border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin: 16px 0; }
+  input[type="text"] { padding: 8px; font-size: 15px; width: 220px; }
+  button { padding: 8px 16px; font-size: 15px; cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+  th { background: #f5f5f5; }
+  .cheapest { color: #0a7d2c; font-weight: bold; }
+  .muted { color: #888; font-size: 13px; }
+  .error { color: #c00; }
+  #askInput { width: 100%; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<h1>AI 代充价格查询</h1>
+<p class="muted">数据来自 Supabase 价格库，每 5 小时刷新一次。接口与本站同域，不用填任何地址。</p>
+
+<div class="card">
+  <h2>查价格</h2>
+  <label>商品名：
+    <input type="text" id="productInput" value="Plus" placeholder="例如 Plus / Pro / Team">
+  </label>
+  <button id="queryBtn">查询</button>
+  <p id="cheapestLine"></p>
+  <table id="priceTable" style="display:none">
+    <thead><tr><th>店</th><th>价格（¥）</th><th>更新时间</th></tr></thead>
+    <tbody id="priceBody"></tbody>
+  </table>
+  <p id="priceError" class="error"></p>
+</div>
+
+<div class="card">
+  <h2>问一问</h2>
+  <p class="muted">免费模型每天限 50 次，省着问。</p>
+  <input type="text" id="askInput" value="现在最便宜的Plus是哪家" placeholder="例如：现在最便宜的Plus是哪家">
+  <button id="askBtn">问</button>
+  <p id="askAnswer"></p>
+  <p id="askError" class="error"></p>
+</div>
+
+<p class="muted">提示：如果直接在本地双击打开这个文件，接口会不通（/api/... 需要部署后的 Worker 提供），请部署后用线上地址访问。</p>
+
+<script>
+// 全部用相对路径 /api/... 调用，部署后同域可用，不用写死任何 Worker 域名。
+async function queryPrices() {
+  const product = document.getElementById('productInput').value.trim() || 'Plus';
+  const errEl = document.getElementById('priceError');
+  const table = document.getElementById('priceTable');
+  const body = document.getElementById('priceBody');
+  const cheapestLine = document.getElementById('cheapestLine');
+  errEl.textContent = '';
+  cheapestLine.textContent = '查询中…';
+  table.style.display = 'none';
+  body.innerHTML = '';
+  try {
+    const [pricesRes, cheapestRes] = await Promise.all([
+      fetch('/api/prices?product=' + encodeURIComponent(product)),
+      fetch('/api/cheapest?product=' + encodeURIComponent(product)),
+    ]);
+    const pricesData = await pricesRes.json();
+    const cheapestData = await cheapestRes.json();
+    if (!pricesData.ok) throw new Error(pricesData.error || '查询失败');
+    if (!pricesData.prices.length) {
+      cheapestLine.textContent = '暂无 ' + product + ' 的价格数据。';
+      return;
+    }
+    const c = cheapestData.cheapest;
+    cheapestLine.innerHTML = c
+      ? '最便宜：<span class="cheapest">' + escapeHtml(c.shop) + ' ¥' + c.price_cny + '</span>'
+      : '';
+    for (const p of pricesData.prices) {
+      const tr = document.createElement('tr');
+      const isCheapest = c && p.shop === c.shop && p.price_cny === c.price_cny;
+      tr.innerHTML =
+        '<td>' + (isCheapest ? '<span class="cheapest">' + escapeHtml(p.shop) + ' ★</span>' : escapeHtml(p.shop)) + '</td>' +
+        '<td>¥' + p.price_cny + '</td>' +
+        '<td>' + escapeHtml(new Date(p.checked_at).toLocaleString()) + '</td>';
+      body.appendChild(tr);
+    }
+    table.style.display = '';
+  } catch (e) {
+    cheapestLine.textContent = '';
+    errEl.textContent = '查询失败：' + e.message;
+  }
+}
+
+async function ask() {
+  const q = document.getElementById('askInput').value.trim();
+  const ansEl = document.getElementById('askAnswer');
+  const errEl = document.getElementById('askError');
+  errEl.textContent = '';
+  if (!q) { errEl.textContent = '先输入问题。'; return; }
+  ansEl.textContent = '问模型中…';
+  try {
+    const res = await fetch('/api/ask?q=' + encodeURIComponent(q));
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || '问答失败');
+    ansEl.textContent = data.answer || '模型没有返回内容。';
+  } catch (e) {
+    ansEl.textContent = '';
+    errEl.textContent = '问答失败：' + e.message;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+document.getElementById('queryBtn').addEventListener('click', queryPrices);
+document.getElementById('askBtn').addEventListener('click', ask);
+queryPrices();
+</script>
+</body>
+</html>
