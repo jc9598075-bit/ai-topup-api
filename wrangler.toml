@@ -1,0 +1,25 @@
+# ai-topup-api — Cloudflare Workers 配置
+# 部署前：Cloudflare 邮箱验证通过后，依次执行
+#   npx wrangler login
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   npx wrangler secret put OPENROUTER_API_KEY
+#   npx wrangler deploy
+# 密钥绝不要写进这个文件、也不要写进仓库。
+
+name = "ai-topup-api"
+main = "worker/src/index.js"
+compatibility_date = "2026-11-09"
+
+# 静态查询页：public/index.html 随 Worker 一起部署，同域访问，走 /api/* 调接口
+[assets]
+directory = "./public"
+
+[vars]
+# Supabase 项目 ai-topup-prices（新加坡区，Free）
+SUPABASE_URL = "https://cdndnjliwpyjrsamcibu.supabase.co"
+# OpenRouter 免费模型：默认用 openrouter/free 这个路由器（2026-11-08
+# 公开模型 API 仍在列），它每次请求随机挑一个当时可用的免费模型，
+# 不用写死某个模型 ID；如果某天它不可用了，去
+# https://openrouter.ai/models?max_price=0 挑一个当时带 :free 的填这里，
+# 也可以用 wrangler secret put FREE_MODEL 覆盖。限额 50 次/天、20 次/分钟。
+FREE_MODEL = "openrouter/free"
