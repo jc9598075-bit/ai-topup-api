@@ -1,0 +1,1 @@
+{"_note":"示例文件，不要当真实价格使用。用法：复制为同目录的 prices.json，把下面的示例数据替换成真实抓取的价格，再用 WORKER_URL 和 WRITE_SECRET 环境变量运行 node scripts/import-prices.mjs 导入。直接用这个文件导入会把假价格写进库，别这么干。","prices":[{"price_cny":100,"product":"Plus","shop":"示例店A"}]}
